@@ -34,20 +34,22 @@ export class ArticleService {
 
   async findBySlug(userId: number, slug: string): Promise<ArticleResponse> {
     const user = userId
-      ? await this.userRepository.findOneOrFail(userId, [
-          'favorites',
-          'bookmarks',
-        ])
+      ? await this.userRepository.findOneOrFail(userId, {
+          populate: ['favorites', 'bookmarks'],
+        })
       : undefined;
-    const article = await this.articleRepository.findOne({ slug }, ['author']);
+    const article = await this.articleRepository.findOne(
+      { slug },
+      { populate: ['author'] },
+    );
 
     if (!article) {
       throw new NotFoundException();
     }
 
-    const author = await this.userRepository.findOneOrFail(article.author.id, [
-      'followersCollection',
-    ]);
+    const author = await this.userRepository.findOneOrFail(article.author.id, {
+      populate: ['followersCollection'],
+    });
 
     return article.toAuthorJSON(author, user);
   }
@@ -57,87 +59,88 @@ export class ArticleService {
     query: FindAllQuery,
   ): Promise<PaginatedArticles> {
     const user = userId
-      ? await this.userRepository.findOneOrFail(userId, [
-          'followersCollection',
-          'favorites',
-          'bookmarks',
-        ])
+      ? await this.userRepository.findOneOrFail(userId, {
+          populate: ['followersCollection', 'favorites', 'bookmarks'],
+        })
       : undefined;
-    const realLimit = Math.min(20, query?.limit || 20);
+
+    const { limit, tag, author, favorited, cursor, order, p, search } = query;
+
+    const realLimit = Math.min(20, limit || 20);
     const realLimitPlusOne = realLimit + 1;
 
     const findOptions: Record<string, any> = {};
 
-    if (query.tag) {
+    if (tag) {
       findOptions['lower(CAST(tag_list AS text))'] = new RegExp(
-        query.tag.toLowerCase(),
+        tag.toLowerCase(),
       );
     }
 
-    if (query.author) {
-      const author = await this.userRepository.findOne({
-        username: query.author,
+    if (author) {
+      const articleAuthor = await this.userRepository.findOne({
+        username: author,
       });
 
-      if (!author) {
+      if (!articleAuthor) {
         return { articles: [], hasMore: false };
       }
 
-      findOptions.author = author.id;
+      findOptions.author = articleAuthor.id;
     }
 
-    if (query.favorited) {
-      const author = await this.userRepository.findOne({
+    if (favorited) {
+      const profile = await this.userRepository.findOne({
         username: query.favorited,
       });
 
-      if (!author || !author.favorites.isInitialized()) {
+      if (!profile || !profile.favorites.isInitialized()) {
         return { articles: [], hasMore: false };
       }
 
-      findOptions.id = author.favorites.getIdentifiers();
+      findOptions.id = profile.favorites.getIdentifiers();
     }
 
-    if (query.cursor) {
-      findOptions.createdAt = { $lt: new Date(query.cursor) };
+    if (cursor) {
+      findOptions.createdAt = { $lt: new Date(cursor) };
     }
 
-    if (query.search) {
-      const search = new RegExp(query.search.toLowerCase());
+    if (search) {
+      const searchRE = new RegExp(search.toLowerCase());
       findOptions.$or = [
-        { [expr('lower(title)')]: search },
-        { [expr('lower(description)')]: search },
+        { [expr('lower(title)')]: searchRE },
+        { [expr('lower(description)')]: searchRE },
       ];
     }
 
-    const order: Record<string, any> = {};
-    if (query.order) {
-      switch (query.order) {
+    const queryOrder: Record<string, string> = {};
+    if (order) {
+      switch (order) {
         case FindQueryOrder.ASC:
-          order.createdAt = 'ASC';
+          queryOrder.createdAt = 'ASC';
           break;
 
         case FindQueryOrder.TOP:
-          order.favoritesCount = 'DESC';
+          queryOrder.favoritesCount = 'DESC';
           break;
 
         case FindQueryOrder.DESC:
         default:
-          order.createdAt = 'DESC';
+          queryOrder.createdAt = 'DESC';
           break;
       }
     } else {
-      order.createdAt = QueryOrder.DESC;
+      queryOrder.createdAt = QueryOrder.DESC;
     }
 
     let skip = 0;
-    if (query.p) {
-      skip = Math.max(query.p - 1, 0);
+    if (p) {
+      skip = Math.max(p - 1, 0);
     }
 
     const articles = await this.articleRepository.find(findOptions, {
       populate: ['author'],
-      orderBy: order,
+      orderBy: queryOrder,
       limit: realLimitPlusOne,
       offset: skip * realLimit,
     });
@@ -152,28 +155,29 @@ export class ArticleService {
     userId: number,
     query: FindFeedQuery,
   ): Promise<PaginatedArticles> {
-    const realLimit = Math.min(20, query?.limit || 20);
+    const { limit, p, cursor } = query;
+
+    const realLimit = Math.min(20, limit || 20);
     const realLimitPlusOne = realLimit + 1;
 
-    const user = await this.userRepository.findOneOrFail(userId, [
-      'favorites',
-      'bookmarks',
-    ]);
+    const user = await this.userRepository.findOneOrFail(userId, {
+      populate: ['favorites', 'bookmarks'],
+    });
 
     let skip = 0;
-    if (query.p) {
-      skip = Math.max(query.p - 1, 0);
+    if (p) {
+      skip = Math.max(p - 1, 0);
     }
 
     let results: Article[];
-    if (query.cursor) {
+    if (cursor) {
       results = await this.articleRepository.find(
         {
           author: { followersCollection: userId },
-          createdAt: { $lt: new Date(query.cursor) },
+          createdAt: { $lt: new Date(cursor) },
         },
         {
-          populate: ['author'],
+          populate: ['author.followersCollection'],
           orderBy: { createdAt: QueryOrder.DESC },
           limit: realLimitPlusOne,
         },
@@ -182,13 +186,15 @@ export class ArticleService {
       results = await this.articleRepository.find(
         { author: { followersCollection: userId } },
         {
-          populate: ['author'],
+          populate: ['author', 'author.followersCollection'],
           orderBy: { createdAt: QueryOrder.DESC },
           limit: realLimitPlusOne,
           offset: skip * realLimit,
         },
       );
     }
+
+    console.log(results[0].author.followersCollection.count());
 
     return {
       articles: results.slice(0, realLimit).map((a) => a.toJSON(user)),
@@ -200,11 +206,9 @@ export class ArticleService {
     userId: number,
     query: FindAllQuery,
   ): Promise<PaginatedArticles> {
-    const user = await this.userRepository.findOneOrFail(userId, [
-      'followersCollection',
-      'favorites',
-      'bookmarks',
-    ]);
+    const user = await this.userRepository.findOneOrFail(userId, {
+      populate: ['followersCollection', 'favorites', 'bookmarks'],
+    });
 
     const realLimit = Math.min(20, query?.limit || 20);
     const realLimitPlusOne = realLimit + 1;
@@ -239,9 +243,10 @@ export class ArticleService {
     data: CreateArticleDTO,
     image?: BufferFile,
   ): Promise<ArticleResponse> {
-    const user = await this.userRepository.findOneOrFail({ id: userId }, [
-      'articles',
-    ]);
+    const user = await this.userRepository.findOneOrFail(
+      { id: userId },
+      { populate: ['articles'] },
+    );
     // Get random image if non is provided
     let url = `https://picsum.photos/seed/${(
       (Math.random() * Math.pow(36, 6)) |
@@ -269,7 +274,10 @@ export class ArticleService {
     image?: BufferFile,
   ): Promise<ArticleResponse> {
     const user = await this.userRepository.findOneOrFail({ id: userId });
-    const article = await this.articleRepository.findOne({ slug }, ['author']);
+    const article = await this.articleRepository.findOne(
+      { slug },
+      { populate: ['author'] },
+    );
     if (!article) {
       throw new NotFoundException();
     }
@@ -292,9 +300,10 @@ export class ArticleService {
 
   async deleteArticle(slug: string, userId: number): Promise<ArticleResponse> {
     const user = await this.userRepository.findOneOrFail({ id: userId });
-    const article = await this.articleRepository.findOneOrFail({ slug }, [
-      'author',
-    ]);
+    const article = await this.articleRepository.findOneOrFail(
+      { slug },
+      { populate: ['author'] },
+    );
     if (!this.ensureOwnership(userId, article)) {
       throw new UnauthorizedException();
     }
@@ -307,13 +316,14 @@ export class ArticleService {
     slug: string,
     userId: number,
   ): Promise<ArticleResponse> {
-    const user = await this.userRepository.findOneOrFail({ id: userId }, [
-      'favorites',
-      'followersCollection',
-    ]);
-    const article = await this.articleRepository.findOneOrFail({ slug }, [
-      'author',
-    ]);
+    const user = await this.userRepository.findOneOrFail(
+      { id: userId },
+      { populate: ['favorites', 'followersCollection'] },
+    );
+    const article = await this.articleRepository.findOneOrFail(
+      { slug },
+      { populate: ['author'] },
+    );
     if (!user.favorites.contains(article)) {
       user.favorites.add(article);
       article.favoritesCount++;
@@ -327,13 +337,14 @@ export class ArticleService {
     slug: string,
     userId: number,
   ): Promise<ArticleResponse> {
-    const user = await this.userRepository.findOneOrFail({ id: userId }, [
-      'favorites',
-      'followersCollection',
-    ]);
-    const article = await this.articleRepository.findOneOrFail({ slug }, [
-      'author',
-    ]);
+    const user = await this.userRepository.findOneOrFail(
+      { id: userId },
+      { populate: ['favorites', 'followersCollection'] },
+    );
+    const article = await this.articleRepository.findOneOrFail(
+      { slug },
+      { populate: ['author'] },
+    );
 
     if (user.favorites.contains(article)) {
       user.favorites.remove(article);
@@ -348,12 +359,14 @@ export class ArticleService {
     slug: string,
     userId: number,
   ): Promise<ArticleResponse> {
-    const user = await this.userRepository.findOneOrFail({ id: userId }, [
-      'bookmarks',
-    ]);
-    const article = await this.articleRepository.findOneOrFail({ slug }, [
-      'author',
-    ]);
+    const user = await this.userRepository.findOneOrFail(
+      { id: userId },
+      { populate: ['bookmarks'] },
+    );
+    const article = await this.articleRepository.findOneOrFail(
+      { slug },
+      { populate: ['author'] },
+    );
 
     user.bookmarks.add(article);
     await this.userRepository.flush();
@@ -364,12 +377,14 @@ export class ArticleService {
     slug: string,
     userId: number,
   ): Promise<ArticleResponse> {
-    const user = await this.userRepository.findOneOrFail({ id: userId }, [
-      'bookmarks',
-    ]);
-    const article = await this.articleRepository.findOneOrFail({ slug }, [
-      'author',
-    ]);
+    const user = await this.userRepository.findOneOrFail(
+      { id: userId },
+      { populate: ['bookmarks'] },
+    );
+    const article = await this.articleRepository.findOneOrFail(
+      { slug },
+      { populate: ['author'] },
+    );
 
     user.bookmarks.remove(article);
     await this.userRepository.flush();

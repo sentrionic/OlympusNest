@@ -16,9 +16,10 @@ export class UserService {
     username: string,
     user?: number,
   ): Promise<ProfileResponse> {
-    const profile = await this.userRepository.findOneOrFail({ username }, [
-      'followersCollection',
-    ]);
+    const profile = await this.userRepository.findOneOrFail(
+      { username },
+      { populate: ['followersCollection'] },
+    );
     const currentUser = user
       ? await this.userRepository.findOneOrFail({ id: user })
       : undefined;
@@ -51,7 +52,7 @@ export class UserService {
       {
         username,
       },
-      ['followersCollection'],
+      { populate: ['followersCollection'] },
     );
 
     if (currentUser.id === user.id) {
@@ -82,7 +83,7 @@ export class UserService {
       {
         username,
       },
-      ['followersCollection'],
+      { populate: ['followersCollection'] },
     );
 
     if (

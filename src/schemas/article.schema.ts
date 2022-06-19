@@ -1,11 +1,5 @@
 import * as yup from 'yup';
-import { CreateCommentDTO } from '../models/comment.model';
-import {
-  CreateArticleDTO,
-  FindAllQuery,
-  FindQueryOrder,
-  UpdateArticleDTO,
-} from '../models/article.model';
+import { FindQueryOrder } from '../models/article.model';
 import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from '../utils/constants';
 
 export const ArticleSchema = yup.object().shape({

@@ -27,7 +27,10 @@ export class CommentsService {
       throw new NotFoundException();
     }
 
-    const comments = await this.commentRepository.find({ article }, ['author']);
+    const comments = await this.commentRepository.find(
+      { article },
+      { populate: ['author'] },
+    );
 
     return comments.map((c) => c.toJSON()) || [];
   }
@@ -37,9 +40,10 @@ export class CommentsService {
     slug: string,
     data: CreateCommentDTO,
   ): Promise<CommentResponse> {
-    const article = await this.articleRepository.findOneOrFail({ slug }, [
-      'author',
-    ]);
+    const article = await this.articleRepository.findOneOrFail(
+      { slug },
+      { populate: ['author'] },
+    );
     const author = await this.userRepository.findOneOrFail({ id: user });
     const comment = new Comment(author, article, data.body);
     await this.commentRepository.persistAndFlush(comment);
@@ -52,13 +56,15 @@ export class CommentsService {
     slug: string,
     id: number,
   ): Promise<CommentResponse> {
-    const article = await this.articleRepository.findOneOrFail({ slug }, [
-      'author',
-      'comments',
-    ]);
+    const article = await this.articleRepository.findOneOrFail(
+      { slug },
+      { populate: ['author', 'comments'] },
+    );
     const user = await this.userRepository.findOneOrFail(userId);
 
-    const comment = await this.commentRepository.findOne(id, ['author']);
+    const comment = await this.commentRepository.findOne(id, {
+      populate: ['author'],
+    });
 
     if (!comment) {
       throw new NotFoundException();

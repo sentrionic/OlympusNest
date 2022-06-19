@@ -2,7 +2,6 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -126,7 +125,7 @@ export class AuthService {
     await redis.set(
       FORGET_PASSWORD_PREFIX + token,
       user.id,
-      'ex',
+      'EX',
       1000 * 60 * 60 * 24 * 3,
     ); // 3 days
 

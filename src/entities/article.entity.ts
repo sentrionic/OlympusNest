@@ -72,7 +72,7 @@ export class Article {
   }
 
   toJSON(user?: User): ArticleResponse {
-    const o = wrap(this).toObject();
+    const o = wrap<Article>(this).toObject() as unknown as ArticleResponse;
     o.favorited = user?.favorites?.isInitialized()
       ? user.favorites.contains(this)
       : false;
@@ -81,11 +81,11 @@ export class Article {
       : false;
     o.author = this.author.toProfile(user);
 
-    return o as ArticleResponse;
+    return o;
   }
 
   toAuthorJSON(author: User, user?: User): ArticleResponse {
-    const o = wrap(this).toObject();
+    const o = wrap<Article>(this).toObject() as unknown as ArticleResponse;
     o.favorited = user?.favorites?.isInitialized()
       ? user.favorites.contains(this)
       : false;
@@ -94,6 +94,6 @@ export class Article {
       : false;
     o.author = author.toProfile(user);
 
-    return o as ArticleResponse;
+    return o;
   }
 }

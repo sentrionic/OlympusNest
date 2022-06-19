@@ -30,8 +30,8 @@ export class Comment {
   }
 
   toJSON(): CommentResponse {
-    const o = wrap(this).toObject();
+    const o = wrap<Comment>(this).toObject() as unknown as CommentResponse;
     o.author = this.author.toProfile();
-    return o as CommentResponse;
+    return o;
   }
 }

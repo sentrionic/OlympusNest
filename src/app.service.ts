@@ -6,6 +6,6 @@ export class AppService implements OnModuleInit {
   constructor(private readonly orm: MikroORM) {}
   async onModuleInit() {
     const generator = this.orm.getSchemaGenerator();
-    await generator.updateSchema(false);
+    await generator.updateSchema();
   }
 }

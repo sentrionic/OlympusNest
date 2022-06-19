@@ -4,14 +4,6 @@ import { TsMorphMetadataProvider } from '@mikro-orm/reflection';
 
 const config = {
   type: 'postgresql',
-  driverOptions: {
-    connection: {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false,
-      },
-    },
-  },
   clientUrl: process.env.DATABASE_URL,
   password: process.env.DATABASE_PASSWORD,
   entities: ['dist/**/*.entity.js'],

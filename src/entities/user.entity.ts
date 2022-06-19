@@ -87,17 +87,17 @@ export class User {
   }
 
   toJSON(): UserResponse {
-    const o = wrap(this).toObject();
+    const o = wrap<User>(this).toObject() as unknown as ProfileResponse;
     o.email = this.email;
-    return o as UserResponse;
+    return o;
   }
 
   toProfile(user?: User): ProfileResponse {
-    const o = wrap(this).toObject();
+    const o = wrap<User>(this).toObject() as unknown as ProfileResponse;
     o.following =
       user && this.followersCollection.isInitialized()
         ? this.followersCollection.contains(user)
         : false;
-    return o as ProfileResponse;
+    return o;
   }
 }
