@@ -194,8 +194,6 @@ export class ArticleService {
       );
     }
 
-    console.log(results[0].author.followersCollection.count());
-
     return {
       articles: results.slice(0, realLimit).map((a) => a.toJSON(user)),
       hasMore: results.length === realLimitPlusOne,

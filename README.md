@@ -12,9 +12,17 @@ OlympusNest is a backend for the [OlympusBlog](https://github.com/sentrionic/Oly
 
 1. Clone this repository
 2. Install Postgres and Redis.
-3. Run `yarn` to install all the dependencies
-4. Rename `.env.example` to `.env`
+   ```bash
+   $ docker run --name postgres -p 5432:5432 -e POSTGRES_USER=root -e POSTGRES_PASSWORD=password -d postgres:alpine
+   $ docker run --name redis -d -p 6379:6379 redis:alpine redis-server --save 60 1
+   ```
+3. Create the DB
+   ```bash
+   $ docker exec -it postgres createdb --username=root --owner=root blog
+   ```
+4. Run `yarn` to install all the dependencies
+5. Rename `.env.example` to `.env`
    and fill out the values. AWS is only required if you want file upload,
-   GMail if you want to send reset emails.
-5. Run `yarn start:dev`.
-6. Go to `localhost:4000` for a list of all the endpoints.
+   Gmail if you want to send reset emails.
+6. Run `yarn start:dev`.
+7. Go to `localhost:4000` for a list of all the endpoints.
