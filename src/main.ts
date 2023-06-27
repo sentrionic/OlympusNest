@@ -1,20 +1,24 @@
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import * as connectRedis from 'connect-redis';
 import { config } from 'dotenv';
 import * as session from 'express-session';
 import { AppModule } from './app.module';
 import { redis } from './utils/redis';
 import { COOKIE_NAME } from './utils/constants';
+import RedisStore from 'connect-redis';
 
 config();
 
 const __prod__ = process.env.NODE_ENV === 'production';
 
 async function bootstrap() {
+  const redisStore = new RedisStore({
+    client: redis,
+    disableTouch: true,
+  })
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  const RedisStore = connectRedis(session);
   app.setGlobalPrefix('api');
   app.set('trust proxy', 1);
   app.enableCors({
@@ -24,10 +28,7 @@ async function bootstrap() {
   app.use(
     session({
       name: COOKIE_NAME,
-      store: new RedisStore({
-        client: redis,
-        disableTouch: true,
-      }),
+      store: redisStore,
       cookie: {
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
         httpOnly: true,
